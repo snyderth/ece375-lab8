@@ -1,0 +1,31 @@
+<ASSEMBLER_INFO>
+ <VERSION>2.2.7</VERSION>
+ <DEVICE>"ATmega128"</DEVICE>
+ <WORKING_DIR>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\Debug</WORKING_DIR>
+ <INCLUDE_PATH>
+  <DIR>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.3.300\avrasm\inc</DIR>
+  <DIR>C:\Program Files (x86)\Atmel\Studio\7.0\toolchain\avr8\avrassembler\Include</DIR>
+  <DIR></DIR>
+ </INCLUDE_PATH>
+ <SOURCE_FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</SOURCE_FILE>
+ <INCLUDED_FILES>
+  <FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\m128def.inc</FILE>
+ </INCLUDED_FILES>
+ <OBJECT_FILES>
+  <FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\Debug\Lab8.obj</FILE>
+ </OBJECT_FILES>
+ <HEX_FILES>
+  <FILE>Lab8.hex</FILE>
+ </HEX_FILES>
+ <OUTPUT_FILES>
+  <FILE>Lab8.map</FILE>
+  <FILE>Lab8.lss</FILE>
+ </OUTPUT_FILES>
+ <LABELS>
+  <INIT><FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</FILE><LINE>67</LINE></INIT>
+  <WaitInterrupt><FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</FILE><LINE>114</LINE></WaitInterrupt>
+  <MAIN><FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</FILE><LINE>106</LINE></MAIN>
+  <SETmpr><FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</FILE><LINE>121</LINE></SETmpr>
+  <NEXT><FILE>C:\Users\Thomas\Documents\Classes\ECE375\Lab8\Lab8\timer_test.asm</FILE><LINE>124</LINE></NEXT>
+ </LABELS>
+</ASSEMBLER_INFO>

@@ -20,7 +20,7 @@
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
 
-.equ    Wait1Sec = 7812
+.equ    Wait1Sec = 20000
 
 .equ	WskrR = 0				; Right Whisker Input Bit
 .equ	WskrL = 1				; Left Whisker Input Bit
@@ -88,7 +88,7 @@ INIT:
 
     ldi     mpr, (1 << OCIE1A)
     out     TIMSK, mpr
-
+	sei
 	;I/O Ports
 	;USART1
 		;Set baudrate at 2400bps
@@ -104,6 +104,7 @@ INIT:
 ;*	Main Program
 ;***********************************************************
 MAIN:
+	clr mpr
 	;TODO: ???
 		rjmp	MAIN
 
@@ -111,7 +112,16 @@ MAIN:
 ;*	Functions and Subroutines
 ;***********************************************************
 WaitInterrupt:
-    ldi mpr, $ff 
+	in mpr, PORTB
+	cpi mpr, $00
+	breq SETmpr
+	clr mpr
+	rjmp NEXT
+
+SETmpr:
+	ser mpr
+
+NEXT:
     out PORTB, mpr
     ldi mpr, (1 << OCF1A)
     out TIFR, mpr
