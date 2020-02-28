@@ -20,6 +20,7 @@
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
 .def    WaitStatus = r17         ; holds the status of wait
+.def    MovementState = r24     ; Holds the movement state
 
 .equ	WskrR = 0				; Right Whisker Input Bit
 .equ	WskrL = 1				; Left Whisker Input Bit
@@ -27,6 +28,15 @@
 .equ	EngEnL = 7				; Left Engine Enable Bit
 .equ	EngDirR = 5				; Right Engine Direction Bit
 .equ	EngDirL = 6				; Left Engine Direction Bit
+
+
+
+.equ    Forward = $00
+.equ    BumpLeft = $01
+.equ    Stop = $02
+.equ    BumpRight = $03
+
+
 
 
 .equ    FwdCmd  = $b0
@@ -37,7 +47,7 @@
 .equ    FrzCmd  = $f8
 
 .equ    Wait5Sec = 39062
-.equ    Wait1Sec = 7812
+.equ    Wait1Sec = 15624 
 
 .equ	BotAddress = $7a ;(Enter your robot's address here (8 bits))
 
@@ -79,7 +89,7 @@
         reti
 
 .org    $003C
-        ; rcall   USART_RX_Complete ; Rx data ready
+        rcall   USART_RX_Complete ; Rx data ready
         reti
 
 .org    $003E
@@ -110,7 +120,7 @@ INIT:
     out     DDRB, mpr ; Set PORTB as OUTPUTS
     ldi     mpr, MovFwd
     out     PORTB, mpr ; Set first move to forward
-
+    ldi     MovementState, FwdCmd
 	;USART1
 		;Set baudrate at 2400bps
 		;Enable receiver and enable receive interrupts
@@ -152,11 +162,12 @@ INIT:
     ldi     mpr, $00
     out     TCCR1A, mpr ; No OCn Pins
 
-    ldi     mpr, (1 << WGM12) 
+    sts     TCCR1C, mpr
+
+    ; ldi     mpr, (1 << WGM12) 
+    ldi     mpr, 0b00001101
     out     TCCR1B, mpr ; Set the CTC mode. Don't set prescale
                         ; Yet. We don't want to start counting
-
-    ; Don't touch TCCR1C
 
     ; Leave Timer interrupt disabled until we want to set
 
@@ -169,7 +180,38 @@ INIT:
 ;*	Main Program
 ;***********************************************************
 MAIN:
-		rjmp	MAIN
+CHECKForwardCmd:
+    cpi     MovementState, FwdCmd ; Check if moving forward
+    brne    CHECKReverseCmd ; If not, skip to check reverse
+    ldi     mpr, MovFwd
+    out     PORTB, mpr
+
+CHECKReverseCmd:
+    cpi     MovementState, BckCmd ; Check if moving back
+    brne    CHECKLeftCmd
+    ldi     mpr, MovBck
+    out     PORTB, mpr
+
+CHECKLeftCmd:
+    cpi     MovementState, LCmd
+    brne    CHECKRightCmd
+    ldi     mpr, TurnL
+    out     PORTB, mpr
+
+CHECKRightCmd:
+    cpi     MovementState, RCmd
+    brne    CHECKRightCmd
+    ldi     mpr, TurnR
+    out     PORTB, mpr
+
+CHECKHaltCmd:
+    cpi     MovementState, HltCmd
+    brne    ENDMAIN
+    ldi     mpr, Halt
+    out     PORTB, mpr
+
+ENDMAIN:
+    rjmp	MAIN
 
 ;***********************************************************
 ;*	Functions and Subroutines
@@ -187,12 +229,15 @@ WaitInterrupt:
     out     TIFR, mpr ; Clear timer interrupts
 
     pop     mpr
+    sei
     ret
  
 ;-----------------------------------------------------------
 ;   Func:   Wait
 ;   Desc:   Wait function that waits a set number of time
-;           Parameters should be written to OCR1A for time count
+;           Parameters should be written to OCR1A for time count.
+;           NOTE: Interrups must be reenabled (sei or reti) after
+;           this routine!!!
 ;-----------------------------------------------------------
 Wait:
     push    mpr
@@ -205,23 +250,26 @@ Wait:
     ldi     mpr, (3 << TXEN1)
     sts     UCSR1B, mpr ; Disable USART interrupts
 
-    ldi     mpr, (1 << OCIE1A)
-    out     TIMSK, mpr ; Enable the timer/counter interrupt
+    sei ; Set interrupts enabled 
 
     ldi     mpr, $00
     out     TCNT1H, mpr
     out     TCNT1L, mpr ; Reset the counter
 
-    ldi     mpr, (1 << WGM12 | 7 << CS10)
-    out     TCCR1B, mpr; Set prescaler to start counter
+    ldi     mpr, (1 << 4) 
+    out     TIMSK, mpr ; Enable the timer/counter interrup
+
+    ; ldi     mpr, (1 << WGM12 | 5 << CS10)
+    ; out     TCCR1B, mpr; Set prescaler to start counter
 
 
 WAITLoop:
     cpi     WaitStatus, $ff ; Set when interrupt triggers
     brne    WAITLoop
 
-    ldi     mpr, (1 << WGM12)
-    out     TCCR1B, mpr ; Clear prescaler
+    ; ldi     mpr, (1 << WGM12)
+    ; out     TCCR1B, mpr ; Clear prescaler
+    cli     ; Disable gloabal interrupts
 
     ldi     mpr, $00
     out     TIMSK, mpr ; Disable timer/counter interrupt
@@ -245,6 +293,8 @@ WAITLoop:
 LWhiskerTrig:
     push    mpr
     
+    ; ldi     MovementState, BumpLeft
+
     ldi     mpr, MovBck ; Move backwards
     out     PORTB, mpr
 
@@ -264,8 +314,11 @@ LWhiskerTrig:
     rcall   Wait ; Same configuration
 
     ldi     mpr, MovFwd
-    out     PORTB, mpr
+    out     PORTB, mpr ; Set back to forward
 
+    ldi     mpr, $03
+    out     EIFR, mpr ; Clear flag register
+ 
     pop     mpr
     ret
 
@@ -275,7 +328,8 @@ LWhiskerTrig:
 ;-----------------------------------------------------------
 RWhiskerTrig:
     push    mpr
-    
+
+
     ldi     mpr, MovBck ; Move backwards
     out     PORTB, mpr
 
@@ -297,6 +351,30 @@ RWhiskerTrig:
     ldi     mpr, MovFwd
     out     PORTB, mpr
 
+    pop     mpr
+    ldi     mpr, $03
+    out     EIFR, mpr
+    ret
+
+
+;----------------------------------------------------------
+;   Func:   USART_RX_Complete
+;   Desc:   Runs upon completion of the USART Receiving data
+;----------------------------------------------------------
+USART_RX_Complete:
+    push    mpr
+    lds     mpr, UDR1
+    cpi     mpr, BotAddress ; See if the byte received is addr.
+    brne    ENDRX
+WAITCmd:
+    ldi     mpr, UCSR1A
+    sbis    mpr, RXC1 ; If we saw our address
+    rjmp    WAITCmd     ; Wait until the next byte is received
+
+    lds     mpr, UDR1   ; load command
+    mov     mpr, MovementState ; Put command in Movement state
+    
+ENDRX:
     pop     mpr
     ret
 

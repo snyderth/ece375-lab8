@@ -20,7 +20,7 @@
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
 
-.equ    Wait1Sec = 20000
+.equ    Wait1Sec = 15624
 
 .equ	WskrR = 0				; Right Whisker Input Bit
 .equ	WskrL = 1				; Left Whisker Input Bit
@@ -74,11 +74,14 @@ INIT:
     ldi     mpr, $ff
     out     DDRB, mpr
 
-    ldi     mpr, (1 << CS10 | 1 << CS12 | 1 << WGM12)
+    ; ldi     mpr, (1 << CS10 | 1 << CS12 | 1 << WGM12) ; 0b00001101
+    ldi     mpr, 0b00001101
     out     TCCR1B, mpr
 
     ldi     mpr, $00
     out     TCCR1A, mpr
+
+    ; sts     TCCR1C, mpr
 
     ldi     r16, low(Wait1Sec)
     ldi     r17, high(Wait1Sec)
@@ -86,7 +89,7 @@ INIT:
     out     OCR1AH, r17
     out     OCR1AL, r16
 
-    ldi     mpr, (1 << OCIE1A)
+    ldi     mpr, (1 << 4)
     out     TIMSK, mpr
 	sei
 	;I/O Ports
@@ -104,7 +107,6 @@ INIT:
 ;*	Main Program
 ;***********************************************************
 MAIN:
-	clr mpr
 	;TODO: ???
 		rjmp	MAIN
 
@@ -113,18 +115,19 @@ MAIN:
 ;***********************************************************
 WaitInterrupt:
 	in mpr, PORTB
-	cpi mpr, $00
-	breq SETmpr
-	clr mpr
-	rjmp NEXT
 
-SETmpr:
-	ser mpr
+    cpi mpr, $ff
+    breq CLRMPR
+    ser mpr
+    rjmp END
 
-NEXT:
+CLRMPR:
+    clr mpr
+
+END:
     out PORTB, mpr
-    ldi mpr, (1 << OCF1A)
-    out TIFR, mpr
+    sei
+
     ret
 
 
