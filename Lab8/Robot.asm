@@ -119,7 +119,7 @@ INIT:
 	;I/O Ports
     ldi     mpr, 0b00000100
     out     DDRD, mpr ; Set PORTD as INPUTS
-    ldi     mpr, 0b111110011
+    ldi     mpr, 0b11110011
     out     PORTD, mpr ; Set pullups
 
     ldi     mpr, $ff
