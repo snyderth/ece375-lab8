@@ -111,9 +111,9 @@ INIT:
     cli ;Disable interrupts just in case
 
 	;I/O Ports
-    ldi     mpr, $00
+    ldi     mpr, 0b00000100
     out     DDRD, mpr ; Set PORTD as INPUTS
-    ldi     mpr, $ff
+    ldi     mpr, 0b111110011
     out     PORTD, mpr ; Set pullups
 
     ldi     mpr, $ff
