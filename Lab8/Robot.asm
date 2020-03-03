@@ -20,7 +20,10 @@
 ;***********************************************************
 .def	mpr = r16				; Multi-Purpose Register
 .def    WaitStatus = r17         ; holds the status of wait
+.def    OCRCountH = r19         ; For loading OCR1AH
+.def    OCRCountL = r18         ; For loading OCR1AL
 .def    MovementState = r24     ; Holds the movement state
+.def	FreezeCount = r20        ; Holds the freeze state
 
 .equ	WskrR = 0				; Right Whisker Input Bit
 .equ	WskrL = 1				; Left Whisker Input Bit
@@ -28,7 +31,7 @@
 .equ	EngEnL = 7				; Left Engine Enable Bit
 .equ	EngDirR = 5				; Right Engine Direction Bit
 .equ	EngDirL = 6				; Left Engine Direction Bit
-
+.equ    FrzTxBtn = PD4
 
 
 .equ    Forward = $00
@@ -38,13 +41,16 @@
 
 
 
-
+; Commands from remote
 .equ    FwdCmd  = $b0
 .equ    BckCmd  = $80
 .equ    RCmd    = $a0
 .equ    LCmd    = $90
 .equ    HltCmd  = $c8
 .equ    FrzCmd  = $f8
+
+; Signals from other bots
+.equ    FrzSig  = $55
 
 .equ    Wait5Sec = 39062
 .equ    Wait1Sec = 15624 
@@ -75,13 +81,13 @@
 ;- Left whisker
 ;- Right whisker
 ;- USART receive
-;- USART UDR empty
+;- Timer/Counter1 OCP1A
 .org    $0002  
         rcall   RWhiskerTrig    ; INT0
         reti
 
 .org    $0004   
-        rcall   LWhiskerTrig    ; INT0
+        rcall   LWhiskerTrig    ; INT1
         reti
 
 .org    $0018
@@ -92,9 +98,9 @@
         rcall   USART_RX_Complete ; Rx data ready
         reti
 
-.org    $003E
+; .org    $003E
         ; rcall   USART_DR_Empty ; UDRI
-        reti
+        ; reti
 
 .org	$0046					; End of Interrupt Vectors
 
@@ -135,6 +141,7 @@ INIT:
     ldi     mpr, (7 << UCSZ10) ; Set 8-bit data with 2 stop bits
     sts     UCSR1C, mpr
 
+    ; Set BAUD rate
     ldi     mpr, high(832) ; Load high byte into UBRRH
     sts     UBRR1H, mpr
 
@@ -171,51 +178,139 @@ INIT:
 
     ; Leave Timer interrupt disabled until we want to set
 
-
+    ; Clear Freeze count
+    clr     FreezeCount
     sei ; Enable global interrupts
 
-	;Other
+
+
 
 ;***********************************************************
 ;*	Main Program
 ;***********************************************************
 MAIN:
+
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
 CHECKForwardCmd:
     cpi     MovementState, FwdCmd ; Check if moving forward
     brne    CHECKReverseCmd ; If not, skip to check reverse
     ldi     mpr, MovFwd
     out     PORTB, mpr
 
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
 CHECKReverseCmd:
     cpi     MovementState, BckCmd ; Check if moving back
     brne    CHECKLeftCmd
     ldi     mpr, MovBck
     out     PORTB, mpr
 
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
 CHECKLeftCmd:
-    cpi     MovementState, LCmd
+    cpi     MovementState, LCmd ; Check if moving left
     brne    CHECKRightCmd
     ldi     mpr, TurnL
     out     PORTB, mpr
 
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
 CHECKRightCmd:
-    cpi     MovementState, RCmd
+    cpi     MovementState, RCmd ; Check if moving right
     brne    CHECKRightCmd
     ldi     mpr, TurnR
     out     PORTB, mpr
 
+
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
 CHECKHaltCmd:
-    cpi     MovementState, HltCmd
-    brne    ENDMAIN
+    cpi     MovementState, HltCmd ; Check if stopped
+    brne    CHECKFreezeSig
     ldi     mpr, Halt
     out     PORTB, mpr
 
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKFreezeSig:
+	cpi		MovementState, FrzSig ; Check if freeze signal
+                                ;( From other bots )
+	brne	POLLFrzTx
+	ldi		mpr, Halt   ; If so, halt
+	out		PORTB, mpr
+    inc     FreezeCount ; Increment number of times frozen
+    cpi     FreezeCount, 3 ; See how many timer we are frozen
+    in      mpr, SREG
+    andi    mpr, (1 << SREG_Z)
+    cpi     mpr, (1 << SREG_Z) ;If zero is set (3 times frozen) \/
+    brne    ENDFRZ
+FROZEN: rjmp FROZEN     ; If we're frozen three times, remain frozen
+    
+    ; If we are not frozen three times, wait 5 seconds
+    ldi     OCRCountH, high(Wait5Sec)
+    ldi     OCRCountL, low(Wait5Sec)    ; Load 5 second wait
+
+    out     OCR1AH, OCRCountH
+    out     OCR1AL, OCRCountL
+
+    rcall   Wait ; Wait 5 seconds
+    sei     ; Must be called after wait
+
+ENDFRZ:
+    ldi     MovementState, FwdCmd ; Get out of freeze
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+POLLFrzTx:
+    ; Check for sending freeze
+    cpi     MovementState, FrzCmd
+    brne    ENDMAIN
+    ; If the freeze command is not rx, skip to endmain
+    ; If freeze command is rx, send freeze
+    rcall   SENDFrz
+
 ENDMAIN:
     rjmp	MAIN
+    
+;/***********************************************************\
+;/***********************************************************\
+; ****************** END MAIN *******************************
+;/***********************************************************/
+;/***********************************************************/
+
+
 
 ;***********************************************************
 ;*	Functions and Subroutines
 ;***********************************************************
+
+;-----------------------------------------------------------
+;   Func:   SENDFrz
+;   Desc:   Waits until UDRE1 is set then loads the freeze
+;           command into UDR1
+;-----------------------------------------------------------
+SENDFrz:
+    push    mpr
+    cli     ; Clear interrupts. We don't want to be interrupted
+
+TXWaitFrz:
+    lds      mpr, UCSR1A
+    andi    mpr, (1 << UDRE1) ; Mask all but UDRE1
+    cpi     mpr, (1 << UDRE1) ; Check if UDRE1 is set
+    brne    TXWaitFrz          ; If UDRE1 is not set, loop
+
+    ; Once UDRE1 is set
+    ldi     mpr, FrzSig ; Load the freeze command
+    sts     UDR1, mpr ; Put the freeze command in the TX buffer
+
+    sei     ; Reenable interrupts
+    pop     mpr
+    ret
+
+
 ;-----------------------------------------------------------
 ;   Func: WaitInterrupt
 ;   Desc: Inidcate to the wait function that the timer/counter is
@@ -365,15 +460,25 @@ USART_RX_Complete:
     push    mpr
     lds     mpr, UDR1
     cpi     mpr, BotAddress ; See if the byte received is addr.
-    brne    ENDRX
+    brne    CHECKCmdFrz ; If not our address, check if it's frz
 WAITCmd:
-    ldi     mpr, UCSR1A
-    sbis    mpr, RXC1 ; If we saw our address
+    lds     mpr, UCSR1A ; Load in UCSR1A to check RXC1
+    andi    mpr, (1 << RXC1) ; And to rid of all but RXC1
+    cpi     mpr, (1 << RXC1) ; If RXC1 was set, they will be equal
+    breq    LOADCmd     ; If RXC1 is set, load the command
     rjmp    WAITCmd     ; Wait until the next byte is received
 
+LOADCmd:
     lds     mpr, UDR1   ; load command
-    mov     mpr, MovementState ; Put command in Movement state
-    
+    mov     MovementState, mpr ; Put command in Movement state
+    rjmp    ENDRX
+
+CHECKCmdFrz:
+    cpi     mpr, FrzSig
+    brne    ENDRX ; If its not a freeze command, skip
+    ; If it is a freeze, set state to freeze
+    mov     MovementState, mpr
+
 ENDRX:
     pop     mpr
     ret
