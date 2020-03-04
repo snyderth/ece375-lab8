@@ -55,7 +55,7 @@
 .equ    Wait5Sec = 39062
 .equ    Wait1Sec = 15624 
 
-.equ	BotAddress = $7a ;(Enter your robot's address here (8 bits))
+.equ	BotAddress = $2a;$7a ;(Enter your robot's address here (8 bits))
 
 ;/////////////////////////////////////////////////////////////
 ;These macros are the values to make the TekBot Move.
@@ -117,7 +117,7 @@ INIT:
     cli ;Disable interrupts just in case
 
 	;I/O Ports
-    ldi     mpr, 0b00000100
+    ldi     mpr, 0b00001000
     out     DDRD, mpr ; Set PORTD as INPUTS
     ldi     mpr, 0b11110011
     out     PORTD, mpr ; Set pullups
@@ -135,7 +135,7 @@ INIT:
     ldi     mpr, (1 << U2X1) ; Only setting the double data
     sts     UCSR1A, mpr
 
-    ldi     mpr, (1 << RXCIE1 | 7 << TXEN1) ; Enable TX, RX, DRInt, RXInt
+    ldi     mpr, (1 << RXCIE1 | 3 << TXEN1) ; Enable TX, RX, DRInt, RXInt
     sts     UCSR1B, mpr
 
     ldi     mpr, (7 << UCSZ10) ; Set 8-bit data with 2 stop bits
@@ -458,6 +458,10 @@ RWhiskerTrig:
 ;----------------------------------------------------------
 USART_RX_Complete:
     push    mpr
+
+    ;ldi     mpr, $01
+    ;out     PORTB, mpr
+    
     lds     mpr, UDR1
     cpi     mpr, BotAddress ; See if the byte received is addr.
     brne    CHECKCmdFrz ; If not our address, check if it's frz
@@ -474,6 +478,9 @@ LOADCmd:
     rjmp    ENDRX
 
 CHECKCmdFrz:
+    in      mpr, PORTB
+    ori     mpr, $01
+    out     PORTB, mpr
     cpi     mpr, FrzSig
     brne    ENDRX ; If its not a freeze command, skip
     ; If it is a freeze, set state to freeze
