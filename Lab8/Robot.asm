@@ -24,6 +24,7 @@
 .def    OCRCountL = r18         ; For loading OCR1AL
 .def    MovementState = r24     ; Holds the movement state
 .def	FreezeCount = r20        ; Holds the freeze state
+.def    LastMovement = r21      ; Holds the previous movement
 
 .equ	WskrR = 0				; Right Whisker Input Bit
 .equ	WskrL = 1				; Left Whisker Input Bit
@@ -34,10 +35,10 @@
 .equ    FrzTxBtn = PD4
 
 
-.equ    Forward = $00
-.equ    BumpLeft = $01
-.equ    Stop = $02
-.equ    BumpRight = $03
+; .equ    Forward = $00
+; .equ    BumpLeft = $01
+; .equ    Stop = $02
+; .equ    BumpRight = $03
 
 
 
@@ -55,7 +56,7 @@
 .equ    Wait5Sec = 39062
 .equ    Wait1Sec = 15624 
 
-.equ	BotAddress = $2a;$7a ;(Enter your robot's address here (8 bits))
+.equ	BotAddress = $2a ;(Enter your robot's address here (8 bits))
 
 ;/////////////////////////////////////////////////////////////
 ;These macros are the values to make the TekBot Move.
@@ -127,6 +128,7 @@ INIT:
     ldi     mpr, MovFwd
     out     PORTB, mpr ; Set first move to forward
     ldi     MovementState, FwdCmd
+    ldi     LastMovement, FwdCmd
 	;USART1
 		;Set baudrate at 2400bps
 		;Enable receiver and enable receive interrupts
@@ -185,92 +187,153 @@ INIT:
 
 
 
+
+
 ;***********************************************************
 ;*	Main Program
 ;***********************************************************
 MAIN:
 
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKForwardCmd:
-    cpi     MovementState, FwdCmd ; Check if moving forward
-    brne    CHECKReverseCmd ; If not, skip to check reverse
-    ldi     mpr, MovFwd
-    out     PORTB, mpr
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKForwardCmd:
+;     cpi     MovementState, FwdCmd ; Check if moving forward
+;     brne    CHECKReverseCmd ; If not, skip to check reverse
+;     ldi     mpr, MovFwd
+;     out     PORTB, mpr
+;     ldi     LastMovement, FwdCmd
+    
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKReverseCmd:
+;     cpi     MovementState, BckCmd ; Check if moving back
+;     brne    CHECKLeftCmd
+;     ldi     mpr, MovBck
+;     out     PORTB, mpr
+
+;     ldi     LastMovement, BckCmd
+    
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKLeftCmd:
+;     cpi     MovementState, LCmd ; Check if moving left
+;     brne    CHECKRightCmd
+;     ldi     mpr, TurnL
+;     out     PORTB, mpr
+;     ldi     LastMovement, LCmd
 
     
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKReverseCmd:
-    cpi     MovementState, BckCmd ; Check if moving back
-    brne    CHECKLeftCmd
-    ldi     mpr, MovBck
-    out     PORTB, mpr
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKRightCmd:
+;     cpi     MovementState, RCmd ; Check if moving right
+;     brne    CHECKHaltCmd
+;     ldi     mpr, TurnR
+;     ; ldi     mpr, $ff
+;     out     PORTB, mpr
+;     ldi     LastMovement, RCmd
 
+
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKHaltCmd:
+;     cpi     MovementState, HltCmd ; Check if stopped
+;     brne    CHECKFrzCmd
+;     ; brne    CHECKFreezeSig
+;     ; brne    POLLFrzTx
+;     ldi     mpr, Halt
+;     out     PORTB, mpr
+;     ldi     LastMovement, HltCmd
+
+;     ; rjmp    POLLFrzTx
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; CHECKFrzCmd:
+;     cpi     MovementState, FrzCmd ; Compare state w/ frzcmd
+;     brne    CHECKFrzSignal     ; If its not frzcmd branch away
+;     ldi     mpr, FrzSig ; else load frz sig 
+;     out     PORTB, mpr  ; write to portb the signal
+;     rcall   SENDFrz     ; send the signal
+;     mov     MovementState, LastMovement 
+;     ; Put in last state
+
+; CHECKFrzSignal:
+;     cpi     MovementState, FrzSig
+;     brne    ENDMAIN
+
+;     cli ; No interrupts allowed
+
+;     ; Halt
+;     ldi     mpr, Halt
+;     out     PORTB, mpr 
+
+;     ; Wait for 5 seconds
+;     ldi     OCRCountH, high(Wait5Sec)
+;     ldi     OCRCountL, low(Wait5Sec)
+;     out     OCR1AH, OCRCountH
+;     out     OCR1AL, OCRCountL
+
+
+;     inc     FreezeCount
+;     out     PORTB, FreezeCount
+;     cpi     FreezeCount, 3
+;     brne    NOTFrzInf ; Not frozen to infinity?
+;     FROZEN:
+;         cli
+;         rjmp FROZEN
+
+; NOTFrzInf:
+;     rcall   wait
+;     ldi     mpr, $03
+;     out     EIFR, mpr ; Clear interrupts
+;     mov     MovementState, LastMovement
+;     sei     ; Reenable interrupts
+    ; Necessary for wait routine
+
+; CHECKFreezeSig:
+;     cli     ; Disable interrupts
+; 	cpi		MovementState, FrzSig ; Check if freeze signal
+;                                 ;( From other bots )
+                                
+; 	brne	POLLFrzTx
+; 	ldi		mpr, Halt   ; If so, halt
+; 	out		PORTB, mpr
+;     ; inc     FreezeCount ; Increment number of times frozen
+; ;     cpi     FreezeCount, 3 ; See how many timer we are frozen
+; ;     in      mpr, SREG
+; ;     andi    mpr, (1 << SREG_Z)
+; ;     cpi     mpr, (1 << SREG_Z) ;If zero is set (3 times frozen) \/
+; ;     brne    ENDFRZ
+; ; FROZEN: rjmp FROZEN     ; If we're frozen three times, remain frozen
     
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKLeftCmd:
-    cpi     MovementState, LCmd ; Check if moving left
-    brne    CHECKRightCmd
-    ldi     mpr, TurnL
-    out     PORTB, mpr
+;     ; If we are not frozen three times, wait 5 seconds
+;     ldi     OCRCountH, high(Wait5Sec)
+;     ldi     OCRCountL, low(Wait5Sec)    ; Load 5 second wait
 
-    
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKRightCmd:
-    cpi     MovementState, RCmd ; Check if moving right
-    brne    CHECKRightCmd
-    ldi     mpr, TurnR
-    out     PORTB, mpr
+;     out     OCR1AH, OCRCountH
+;     out     OCR1AL, OCRCountL
 
+;     ; rcall   Wait ; Wait 5 seconds
 
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKHaltCmd:
-    cpi     MovementState, HltCmd ; Check if stopped
-    brne    CHECKFreezeSig
-    ldi     mpr, Halt
-    out     PORTB, mpr
+;     sei     ; Must be called after wait
 
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-CHECKFreezeSig:
-	cpi		MovementState, FrzSig ; Check if freeze signal
-                                ;( From other bots )
-	brne	POLLFrzTx
-	ldi		mpr, Halt   ; If so, halt
-	out		PORTB, mpr
-    inc     FreezeCount ; Increment number of times frozen
-    cpi     FreezeCount, 3 ; See how many timer we are frozen
-    in      mpr, SREG
-    andi    mpr, (1 << SREG_Z)
-    cpi     mpr, (1 << SREG_Z) ;If zero is set (3 times frozen) \/
-    brne    ENDFRZ
-FROZEN: rjmp FROZEN     ; If we're frozen three times, remain frozen
-    
-    ; If we are not frozen three times, wait 5 seconds
-    ldi     OCRCountH, high(Wait5Sec)
-    ldi     OCRCountL, low(Wait5Sec)    ; Load 5 second wait
-
-    out     OCR1AH, OCRCountH
-    out     OCR1AL, OCRCountL
-
-    rcall   Wait ; Wait 5 seconds
-    sei     ; Must be called after wait
-
-ENDFRZ:
-    ldi     MovementState, FwdCmd ; Get out of freeze
-;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-;////////////////////////////////////////////////////////
-POLLFrzTx:
-    ; Check for sending freeze
-    cpi     MovementState, FrzCmd
-    brne    ENDMAIN
-    ; If the freeze command is not rx, skip to endmain
-    ; If freeze command is rx, send freeze
-    rcall   SENDFrz
+; ENDFRZ:
+;     mov     MovementState, LastMovement ; Reset the movement state
+; ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+; ;////////////////////////////////////////////////////////
+; POLLFrzTx:
+;     ; Check for sending freeze
+;     ; sbic    PIND, PD4
+;     ; ldi     mpr, (1 << PB4)
+;     ; out     PORTB, mpr
+;     cpi     MovementState, FrzCmd
+;     brne    ENDMAIN
+;     out     PORTB, mpr
+;     ; out     PORTB, MovementState
+;     ; If the freeze command is not rx, skip to endmain
+;     ; If freeze command is rx, send freeze
+;     rcall   SENDFrz
+;     mov     MovementState, LastMovement
 
 ENDMAIN:
     rjmp	MAIN
@@ -297,17 +360,23 @@ SENDFrz:
     cli     ; Clear interrupts. We don't want to be interrupted
 
 TXWaitFrz:
-    lds      mpr, UCSR1A
-    andi    mpr, (1 << UDRE1) ; Mask all but UDRE1
-    cpi     mpr, (1 << UDRE1) ; Check if UDRE1 is set
+    lds     mpr, UCSR1A
+    ; sbrs    mpr, 5 ; poll UDRE1
+    andi    mpr, (1 << 5)
+    cpi     mpr, (1 << 5)
     brne    TXWaitFrz          ; If UDRE1 is not set, loop
+
+    ldi     mpr, $ff
+    out     PORTB, mpr
 
     ; Once UDRE1 is set
     ldi     mpr, FrzSig ; Load the freeze command
     sts     UDR1, mpr ; Put the freeze command in the TX buffer
 
     sei     ; Reenable interrupts
+
     pop     mpr
+
     ret
 
 
@@ -413,7 +482,8 @@ LWhiskerTrig:
 
     ldi     mpr, $03
     out     EIFR, mpr ; Clear flag register
- 
+    
+    mov     MovementState, LastMovement
     pop     mpr
     ret
 
@@ -446,6 +516,7 @@ RWhiskerTrig:
     ldi     mpr, MovFwd
     out     PORTB, mpr
 
+    mov     MovementState, LastMovement
     pop     mpr
     ldi     mpr, $03
     out     EIFR, mpr
@@ -475,19 +546,86 @@ WAITCmd:
 LOADCmd:
     lds     mpr, UDR1   ; load command
     mov     MovementState, mpr ; Put command in Movement state
-    rjmp    ENDRX
+    rjmp    MOVEMENT
 
 CHECKCmdFrz:
-    in      mpr, PORTB
-    ori     mpr, $01
-    out     PORTB, mpr
+    ; in      mpr, PORTB
+    ; ori     mpr, $01
+    ; out     PORTB, mpr
     cpi     mpr, FrzSig
-    brne    ENDRX ; If its not a freeze command, skip
+    brne    MOVEMENT ; If its not a freeze command, skip
     ; If it is a freeze, set state to freeze
     mov     MovementState, mpr
 
+MOVEMENT:
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKForwardCmd:
+    cpi     MovementState, FwdCmd ; Check if moving forward
+    brne    CHECKReverseCmd ; If not, skip to check reverse
+    ldi     mpr, MovFwd
+    out     PORTB, mpr
+    ldi     LastMovement, FwdCmd
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKReverseCmd:
+    cpi     MovementState, BckCmd ; Check if moving back
+    brne    CHECKLeftCmd
+    ldi     mpr, MovBck
+    out     PORTB, mpr
+
+    ldi     LastMovement, BckCmd
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKLeftCmd:
+    cpi     MovementState, LCmd ; Check if moving left
+    brne    CHECKRightCmd
+    ldi     mpr, TurnL
+    out     PORTB, mpr
+    ldi     LastMovement, LCmd
+
+    
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKRightCmd:
+    cpi     MovementState, RCmd ; Check if moving right
+    brne    CHECKHaltCmd
+    ldi     mpr, TurnR
+    ; ldi     mpr, $ff
+    out     PORTB, mpr
+    ldi     LastMovement, RCmd
+
+
+;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+;////////////////////////////////////////////////////////
+CHECKHaltCmd:
+    cpi     MovementState, HltCmd ; Check if stopped
+    ; brne    CHECKFrzCmd
+    brne    ENDRX
+    ; brne    CHECKFreezeSig
+    ; brne    POLLFrzTx
+    ldi     mpr, Halt
+    out     PORTB, mpr
+    ldi     LastMovement, HltCmd
+
+CHECKFreezeSig:
+    cpi     MovementState, FrzSig
+    brne    ENDRX ; Endrx
+    ldi     mpr, Halt ; halt
+    ldi     OCRCountH, high(Wait5Sec) ; Load 5 sec wait
+    ldi     OCRCountL, low(Wait5Sec)
+
+    out     OCR1AH, OCRCountH
+    out     OCR1AL, OCRCountL
+
+    rcall   Wait ; wait
+    mov     MovementState, LastMovement
+
 ENDRX:
     pop     mpr
+    sei
     ret
 
 ;***********************************************************
