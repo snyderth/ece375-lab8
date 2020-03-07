@@ -1,5 +1,7 @@
 
-
+FlashTx: 
+	avra Thomas_Snyder_And_Jesudas_Joseph_Tx_sourcecode.asm
+	avrdude -c usbasp -p Atmega128 -U flash:w:Thomas_Snyder_And_Jesudas_Joseph_Tx_sourcecode.hex
 
 FlashRx: receiver
 	avrdude -c usbasp -p Atmega128 -U flash:w:receiver.hex
