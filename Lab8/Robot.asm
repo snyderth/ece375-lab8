@@ -56,7 +56,7 @@
 .equ    Wait5Sec = 39062
 .equ    Wait1Sec = 15624 
 
-.equ	BotAddress = $2a ;(Enter your robot's address here (8 bits))
+.equ	BotAddress = $1f ;(Enter your robot's address here (8 bits))
 
 ;/////////////////////////////////////////////////////////////
 ;These macros are the values to make the TekBot Move.
@@ -443,7 +443,7 @@ WAITLoop:
     ldi     mpr, $03
     out     EIMSK, mpr ; External interrupts
 
-    ldi     mpr, (1 << RXCIE1 | 7 << TXEN1)
+    ldi     mpr, (1 << RXCIE1 | 3 << TXEN1)
     sts     UCSR1B, mpr ; reenable USART
     pop     mpr
 
@@ -534,8 +534,9 @@ USART_RX_Complete:
     ;out     PORTB, mpr
     
     lds     mpr, UDR1
+
     cpi     mpr, BotAddress ; See if the byte received is addr.
-    brne    CHECKCmdFrz ; If not our address, check if it's frz
+    brne    CHECKSigFrz ; If not our address, check if it's frz
 WAITCmd:
     lds     mpr, UCSR1A ; Load in UCSR1A to check RXC1
     andi    mpr, (1 << RXC1) ; And to rid of all but RXC1
@@ -548,14 +549,18 @@ LOADCmd:
     mov     MovementState, mpr ; Put command in Movement state
     rjmp    MOVEMENT
 
-CHECKCmdFrz:
+CHECKSigFrz:
     ; in      mpr, PORTB
     ; ori     mpr, $01
     ; out     PORTB, mpr
-    cpi     mpr, FrzSig
+    cpi     mpr, $55 
     brne    MOVEMENT ; If its not a freeze command, skip
     ; If it is a freeze, set state to freeze
-    mov     MovementState, mpr
+    ldi     mpr, (1 << TXEN1)
+    sts     UCSR1A, mpr
+    rcall   FreezeSigHandle
+    ldi     mpr, (1 << RXCIE1 | 1 << TXEN1 | 1 << RXEN1)
+    sts     UCSR1A, mpr
 
 MOVEMENT:
 ;\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -603,17 +608,33 @@ CHECKRightCmd:
 CHECKHaltCmd:
     cpi     MovementState, HltCmd ; Check if stopped
     ; brne    CHECKFrzCmd
-    brne    ENDRX
+    brne    CHECKFreezeCmd 
     ; brne    CHECKFreezeSig
     ; brne    POLLFrzTx
     ldi     mpr, Halt
     out     PORTB, mpr
     ldi     LastMovement, HltCmd
 
-CHECKFreezeSig:
-    cpi     MovementState, FrzSig
-    brne    ENDRX ; Endrx
+
+CHECKFreezeCmd:
+    cpi     MovementState, FrzCmd
+    brne    ENDRX
+    rcall   SENDFrz
+    mov     MovementState, LastMovement
+
+ENDRX:
+    pop     mpr
+    sei
+    ret
+
+;------------------------------------------------------------
+; Func:     FreezeSig
+; Desc:     Freeze signal handling
+;------------------------------------------------------------
+FreezeSigHandle:
+
     ldi     mpr, Halt ; halt
+    out     PORTB, mpr
     ldi     OCRCountH, high(Wait5Sec) ; Load 5 sec wait
     ldi     OCRCountL, low(Wait5Sec)
 
@@ -622,12 +643,8 @@ CHECKFreezeSig:
 
     rcall   Wait ; wait
     mov     MovementState, LastMovement
-
-ENDRX:
-    pop     mpr
-    sei
     ret
-
+    
 ;***********************************************************
 ;*	Stored Program Data
 ;***********************************************************
