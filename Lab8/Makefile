@@ -4,13 +4,16 @@ FlashTx:
 	avrdude -c usbasp -p Atmega128 -U flash:w:Thomas_Snyder_And_Jesudas_Joseph_Tx_sourcecode.hex
 
 FlashRx: receiver
-	avrdude -c usbasp -p Atmega128 -U flash:w:receiver.hex
+	avrdude -c usbasp -p Atmega128 -U flash:w:Thomas_Snyder_And_Jesudas_Joseph_Rx_sourcecode.hex
 
-flash: asm
-	avrdude -c usbasp -p Atmega128 -U flash:w:Robot.hex
+receiver: Thomas_Snyder_And_Jesudas_Joseph_Rx_sourcecode.asm.asm
+	avra Thomas_Snyder_And_Jesudas_Joseph_Rx_sourcecode.asm
 
-receiver: receiver.asm
-	avra receiver.asm
+
+RxChallenge: Thomas_Snyder_And_Jesudas_Joseph_Rx_challengecode.asm
+	avra Thomas_Snyder_And_Jesudas_Joseph_Rx_challengecode.asm
+	avrdude -c usbasp -p Atmega128 -U flash:w:Thomas_Snyder_And_Jesudas_Joseph_Rx_challengecode.hex
+
 
 asm: Robot.asm
 	avra Robot.asm
