@@ -1,18 +1,21 @@
 ;***********************************************************
 ;*
-;*	Enter Name of file here
+;*	Lab 8 Receiver Challenge
 ;*
-;*	Enter the description of the program here
+;*	A program that runs a robot routine to receive commands
+;*  from a transmitting remote via IR using the USART data
+;*  bus. Also, when the halt or freeze commands are received
+;*  the robot will display its speed on the LEDs with PWM
+;*  indicators and a binary representation of the speed level.
 ;*
 ;*	This is the RECEIVE skeleton file for Lab 8 of ECE 375
 ;*
 ;***********************************************************
 ;*
-;*	 Author: Enter your name
-;*	   Date: Enter Date
+;*	 Author: Thomas Snyder and Jesudas Joseph
+;*	   Date: 03/07/2020
 ;*
 ;***********************************************************
-
 .include "m128def.inc"			; Include definition file
 
 ;***********************************************************
